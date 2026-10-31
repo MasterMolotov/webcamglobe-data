@@ -61,6 +61,27 @@ enum ProbeClassifier {
         return "https://www.youtube.com/watch?v=\(path)"
     }
 
+    /// Nil for channel embeds, which have no fixed video.
+    static func youtubeVideoID(forEmbed embed: String) -> String? {
+        guard let id = URL(string: embed)?.lastPathComponent, id != "live_stream", id.count == 11 else { return nil }
+        return id
+    }
+
+    /// An unknown or deleted video comes back as an empty list, which counts as not live.
+    static func isLiveYouTubeAPIResponse(_ body: Data) -> Bool {
+        struct Response: Decodable {
+            struct Item: Decodable {
+                struct Snippet: Decodable { let liveBroadcastContent: String }
+                struct Status: Decodable { let embeddable: Bool? }
+                let snippet: Snippet
+                let status: Status
+            }
+            let items: [Item]
+        }
+        guard let item = (try? JSONDecoder().decode(Response.self, from: body))?.items.first else { return false }
+        return item.snippet.liveBroadcastContent == "live" && item.status.embeddable != false
+    }
+
     /// A rate-limit or consent page has none of the video's player data.
     static func isYouTubeVideoPage(_ body: Data) -> Bool {
         String(decoding: body, as: UTF8.self).contains(#""playabilityStatus""#)

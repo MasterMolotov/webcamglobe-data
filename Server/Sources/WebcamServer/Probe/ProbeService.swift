@@ -106,6 +106,13 @@ enum ProbeService {
     /// Only a stream that is running right now counts; finished streams stay available as plain videos.
     /// Returns nil when YouTube gave no real answer, as it does when it rate-limits; that says nothing about the stream.
     private static func isLiveOnYouTube(embed: String, client: HTTPClient) async -> Bool? {
+        // The official API isn't rate-limited like the pages, but it only knows single videos.
+        if let key = Environment.get("YOUTUBE_API_KEY"), let id = ProbeClassifier.youtubeVideoID(forEmbed: embed) {
+            let url = "https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=\(id)&key=\(key)"
+            guard let fetched = await fetch(url, client: client, maxBytes: youtubePageBytes),
+                  fetched.status == 200 else { return nil }
+            return ProbeClassifier.isLiveYouTubeAPIResponse(fetched.body)
+        }
         guard let page = ProbeClassifier.youtubeStatusPage(forEmbed: embed),
               let fetched = await fetch(page, client: client, maxBytes: youtubePageBytes),
               ProbeClassifier.isYouTubeVideoPage(fetched.body) else { return nil }

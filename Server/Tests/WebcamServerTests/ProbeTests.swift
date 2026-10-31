@@ -40,6 +40,18 @@ final class ProbeTests: XCTestCase {
         XCTAssertTrue(ProbeClassifier.isLiveYouTubePage(Data(#""playableInEmbed":true,"isLive":true,"playableInEmbed":false"#.utf8)))
     }
 
+    func testYouTubeAPIResponse() {
+        func response(_ live: String, _ embeddable: Bool) -> Data {
+            Data(#"{"items":[{"snippet":{"liveBroadcastContent":"\#(live)"},"status":{"embeddable":\#(embeddable)}}]}"#.utf8)
+        }
+        XCTAssertTrue(ProbeClassifier.isLiveYouTubeAPIResponse(response("live", true)))
+        XCTAssertFalse(ProbeClassifier.isLiveYouTubeAPIResponse(response("live", false)))
+        XCTAssertFalse(ProbeClassifier.isLiveYouTubeAPIResponse(response("none", true)))
+        XCTAssertFalse(ProbeClassifier.isLiveYouTubeAPIResponse(Data(#"{"items":[]}"#.utf8)))
+        XCTAssertEqual(ProbeClassifier.youtubeVideoID(forEmbed: "https://www.youtube-nocookie.com/embed/abcdefghijk"), "abcdefghijk")
+        XCTAssertNil(ProbeClassifier.youtubeVideoID(forEmbed: "https://www.youtube-nocookie.com/embed/live_stream?channel=UC1"))
+    }
+
     func testSearchPageIsNotAVideo() {
         XCTAssertNil(ProbeClassifier.youtubeEmbed(in: "https://www.youtube.com/results?search_query=live"))
     }

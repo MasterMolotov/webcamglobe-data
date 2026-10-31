@@ -8,6 +8,12 @@ on:
       limit:
         description: "Höchstens so viele Kameras prüfen (leer = alle)"
         required: false
+      type:
+        description: "Nur diese Art prüfen, z. B. youtube (leer = alle)"
+        required: false
+      max_age:
+        description: "Auch kürzlich geprüfte Kameras, 0 = alle (leer = älter als 24 Stunden)"
+        required: false
       import:
         description: "Quellen neu einlesen (setzt geprüfte Stream-Arten zurück)"
         type: boolean
@@ -48,8 +54,11 @@ jobs:
         env:
           DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
           LIMIT: ${{ inputs.limit }}
+          TYPE: ${{ inputs.type }}
+          MAX_AGE: ${{ inputs.max_age }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         # Nach 4 Stunden abbrechen: Jede Prüfung ist schon gespeichert, der nächste Lauf macht weiter.
-        run: timeout 14400 .build/debug/WebcamServer probe ${LIMIT:+--limit "$LIMIT"} || [ $? -eq 124 ]
+        run: timeout 14400 .build/debug/WebcamServer probe ${LIMIT:+--limit "$LIMIT"} ${TYPE:+--type "$TYPE"} ${MAX_AGE:+--max-age-hours "$MAX_AGE"} || [ $? -eq 124 ]
       - name: Exportieren
         working-directory: Server
         env:
