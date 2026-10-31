@@ -61,6 +61,11 @@ enum ProbeClassifier {
         return "https://www.youtube.com/watch?v=\(path)"
     }
 
+    /// A rate-limit or consent page has none of the video's player data.
+    static func isYouTubeVideoPage(_ body: Data) -> Bool {
+        String(decoding: body, as: UTF8.self).contains(#""playabilityStatus""#)
+    }
+
     static func isLiveYouTubePage(_ body: Data) -> Bool {
         let page = String(decoding: body, as: UTF8.self)
         // Some owners forbid embedding; such a stream runs but can't play in the app.

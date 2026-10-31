@@ -65,7 +65,9 @@ enum ProbeService {
         }
         // YouTube pages say little to a plain client; a link to a video is enough.
         if let youtube = ProbeClassifier.youtubeEmbed(in: target) {
-            let isLive = await isLiveOnYouTube(embed: youtube, client: client)
+            guard let isLive = await isLiveOnYouTube(embed: youtube, client: client) else {
+                return ProbeOutcome(classification: nil, isOnline: true)
+            }
             return ProbeOutcome(
                 classification: Classification(streamType: isLive ? .youtube : .webpage, streamURL: isLive ? youtube : nil),
                 isOnline: true
@@ -90,17 +92,23 @@ enum ProbeService {
             result = Classification(streamType: .hls, streamURL: candidate, thumbnailURL: result.thumbnailURL)
         }
         // Pages often embed an ordinary video that has nothing to do with the camera.
-        if result.streamType == .youtube, let embed = result.streamURL,
-           await !isLiveOnYouTube(embed: embed, client: client) {
-            result = Classification(streamType: .webpage, streamURL: nil, thumbnailURL: result.thumbnailURL)
+        if result.streamType == .youtube, let embed = result.streamURL {
+            guard let isLive = await isLiveOnYouTube(embed: embed, client: client) else {
+                return ProbeOutcome(classification: nil, isOnline: true)
+            }
+            if !isLive {
+                result = Classification(streamType: .webpage, streamURL: nil, thumbnailURL: result.thumbnailURL)
+            }
         }
         return ProbeOutcome(classification: result, isOnline: true)
     }
 
     /// Only a stream that is running right now counts; finished streams stay available as plain videos.
-    private static func isLiveOnYouTube(embed: String, client: HTTPClient) async -> Bool {
+    /// Returns nil when YouTube gave no real answer, as it does when it rate-limits; that says nothing about the stream.
+    private static func isLiveOnYouTube(embed: String, client: HTTPClient) async -> Bool? {
         guard let page = ProbeClassifier.youtubeStatusPage(forEmbed: embed),
-              let fetched = await fetch(page, client: client, maxBytes: youtubePageBytes) else { return false }
+              let fetched = await fetch(page, client: client, maxBytes: youtubePageBytes),
+              ProbeClassifier.isYouTubeVideoPage(fetched.body) else { return nil }
         return ProbeClassifier.isLiveYouTubePage(fetched.body)
     }
 
