@@ -1,0 +1,72 @@
+name: Kameraliste aktualisieren
+
+on:
+  schedule:
+    - cron: "0 3 * * 0" # sonntags
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Höchstens so viele Kameras prüfen (leer = alle)"
+        required: false
+      import:
+        description: "Quellen neu einlesen (setzt geprüfte Stream-Arten zurück)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 320
+    container: swift:6.1
+    steps:
+      - run: apt-get update -qq && apt-get install -y -qq git jq libsqlite3-dev >/dev/null
+      - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/cache@v4
+        with:
+          path: Server/.build
+          key: build-${{ hashFiles('Server/Package.resolved', 'Server/Sources/**', 'WebcamKit/Sources/**') }}
+          restore-keys: build-
+      - name: Bauen
+        working-directory: Server
+        run: swift build
+      - name: Quellen einlesen
+        if: ${{ inputs.import == true }}
+        working-directory: Server
+        env:
+          DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
+        run: .build/debug/WebcamServer import
+      - name: Kameras prüfen
+        working-directory: Server
+        env:
+          DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
+          LIMIT: ${{ inputs.limit }}
+        # Nach 4 Stunden abbrechen: Jede Prüfung ist schon gespeichert, der nächste Lauf macht weiter.
+        run: timeout 14400 .build/debug/WebcamServer probe ${LIMIT:+--limit "$LIMIT"} || [ $? -eq 124 ]
+      - name: Exportieren
+        working-directory: Server
+        env:
+          DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
+        run: .build/debug/WebcamServer export --output "$RUNNER_TEMP/new.json"
+      - name: Sicherung
+        # GitHub kann von Kameraservern gesperrt werden. Dann lieber die alte Liste behalten.
+        run: |
+          live() { jq '[.[] | select(.streamType == "hls" or .streamType == "mjpeg" or .streamType == "youtube")] | length' "$1"; }
+          old=$(jq length webcams.json); new=$(jq length "$RUNNER_TEMP/new.json")
+          oldLive=$(live webcams.json); newLive=$(live "$RUNNER_TEMP/new.json")
+          echo "Kameras $old -> $new, Livestreams $oldLive -> $newLive"
+          [ $((new * 100)) -ge $((old * 85)) ] && [ $((newLive * 100)) -ge $((oldLive * 85)) ] || { echo "Zu viele Kameras verschwunden, Liste bleibt unverändert"; exit 1; }
+          mv "$RUNNER_TEMP/new.json" webcams.json
+      - name: Hochladen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add webcams.json webcams.sqlite
+          git diff --cached --quiet || { git commit -m "Kameraliste aktualisiert"; git push; }

@@ -1,0 +1,50 @@
+[
+  {
+    "title": "Abbey Road Crossing, London",
+    "latitude": 51.5320,
+    "longitude": -0.1779,
+    "countryCode": "GB",
+    "originalURL": "https://www.abbeyroad.com/crossing",
+    "streamType": "webpage"
+  },
+  {
+    "title": "Times Square, New York",
+    "latitude": 40.7580,
+    "longitude": -73.9855,
+    "countryCode": "US",
+    "originalURL": "https://www.earthcam.com/usa/newyork/timessquare/",
+    "streamType": "webpage"
+  },
+  {
+    "title": "Zugspitze",
+    "latitude": 47.4211,
+    "longitude": 10.9853,
+    "countryCode": "DE",
+    "originalURL": "https://www.foto-webcam.eu/webcam/zugspitze/",
+    "streamType": "webpage"
+  },
+  {
+    "title": "Jungfraujoch",
+    "latitude": 46.5475,
+    "longitude": 7.9853,
+    "countryCode": "CH",
+    "originalURL": "https://www.jungfrau.ch/en-gb/live/webcams/",
+    "streamType": "webpage"
+  },
+  {
+    "title": "Shibuya Crossing, Tokio",
+    "latitude": 35.6595,
+    "longitude": 139.7005,
+    "countryCode": "JP",
+    "originalURL": "https://www.youtube.com/results?search_query=shibuya+crossing+live",
+    "streamType": "webpage"
+  },
+  {
+    "title": "Sydney Harbour",
+    "latitude": -33.8568,
+    "longitude": 151.2153,
+    "countryCode": "AU",
+    "originalURL": "https://www.youtube.com/results?search_query=sydney+harbour+live+cam",
+    "streamType": "webpage"
+  }
+]
