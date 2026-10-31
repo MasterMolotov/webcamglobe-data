@@ -62,7 +62,9 @@ enum ProbeClassifier {
     }
 
     static func isLiveYouTubePage(_ body: Data) -> Bool {
-        String(decoding: body, as: UTF8.self).contains(#""isLive":true"#)
+        let page = String(decoding: body, as: UTF8.self)
+        // Some owners forbid embedding; such a stream runs but can't play in the app.
+        return page.contains(#""isLive":true"#) && !page.contains(#""playableInEmbed":false"#)
     }
 
     /// Open data can point anywhere; never let it make the server call its own network.
