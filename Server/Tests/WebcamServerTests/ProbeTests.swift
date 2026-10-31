@@ -34,6 +34,8 @@ final class ProbeTests: XCTestCase {
         XCTAssertEqual(ProbeClassifier.youtubeStatusPage(forEmbed: "https://www.youtube-nocookie.com/embed/live_stream?channel=UC1"), "https://www.youtube.com/channel/UC1/live")
         XCTAssertTrue(ProbeClassifier.isLiveYouTubePage(Data(#"x"isLive":true,y"#.utf8)))
         XCTAssertFalse(ProbeClassifier.isLiveYouTubePage(Data(#""isLiveContent":true"#.utf8)))
+        XCTAssertFalse(ProbeClassifier.isLiveYouTubePage(Data(#""playableInEmbed":false,"isLive":true"#.utf8)))
+        XCTAssertTrue(ProbeClassifier.isLiveYouTubePage(Data(#""playableInEmbed":true,"isLive":true,"playableInEmbed":false"#.utf8)))
     }
 
     func testSearchPageIsNotAVideo() {
