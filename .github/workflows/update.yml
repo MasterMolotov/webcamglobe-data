@@ -60,6 +60,18 @@ jobs:
           DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: .build/debug/WebcamServer discover
+      - name: Suchergebnis sichern
+        # Die Suche verbraucht das Tageskontingent, ihr Ergebnis darf nicht an der langen Prüfung hängen.
+        if: ${{ inputs.discover == true }}
+        env:
+          DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
+        run: |
+          (cd Server && .build/debug/WebcamServer export --output "$RUNNER_TEMP/found.json")
+          [ "$(jq length "$RUNNER_TEMP/found.json")" -ge "$(jq length webcams.json)" ] && mv "$RUNNER_TEMP/found.json" webcams.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add webcams.json webcams.sqlite
+          git diff --cached --quiet || { git commit -m "YouTube-Suche übernommen"; git push; }
       - name: Kameras prüfen
         working-directory: Server
         env:
