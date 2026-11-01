@@ -14,6 +14,10 @@ on:
       max_age:
         description: "Auch kürzlich geprüfte Kameras, 0 = alle (leer = älter als 24 Stunden)"
         required: false
+      discover:
+        description: "Neue Livestreams auf YouTube suchen (verbraucht fast das ganze Tageskontingent)"
+        type: boolean
+        default: false
       import:
         description: "Quellen neu einlesen (setzt geprüfte Stream-Arten zurück)"
         type: boolean
@@ -49,6 +53,13 @@ jobs:
         env:
           DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
         run: .build/debug/WebcamServer import
+      - name: YouTube durchsuchen
+        if: ${{ inputs.discover == true }}
+        working-directory: Server
+        env:
+          DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: .build/debug/WebcamServer discover
       - name: Kameras prüfen
         working-directory: Server
         env:

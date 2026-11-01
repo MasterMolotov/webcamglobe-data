@@ -12,6 +12,11 @@ struct USStateImporter: WebcamImporter {
     /// States on the "511" platform, paged in steps of `pageSize`.
     private static let portals = ["https://511la.org"]
     private static let pageSize = 100
+    /// States with a feed of their own.
+    private static let directFeeds: [(String, @Sendable (Data) throws -> [ImportedWebcam])] = [
+        ("https://tmc.deldot.gov/json/videocamera.json", parseDelaware),
+        ("https://traveler.modot.org/timconfig/feed/desktop/StreamingCams2.json", parseMissouri),
+    ]
 
     func fetch(using client: any Client) async throws -> [ImportedWebcam] {
         var result: [ImportedWebcam] = []
@@ -34,6 +39,14 @@ struct USStateImporter: WebcamImporter {
         for portal in Self.portals {
             do {
                 result += try await fetchPortal(portal, using: client)
+            } catch {
+                lastError = error
+            }
+        }
+        for (url, parse) in Self.directFeeds {
+            do {
+                let response = try await client.get(URI(string: url), headers: ImportHTTP.headers)
+                result += try parse(ImportHTTP.body(of: response, url: url))
             } catch {
                 lastError = error
             }
@@ -109,6 +122,22 @@ struct USStateImporter: WebcamImporter {
         return (cameras, feed.recordsTotal, feed.data.isEmpty)
     }
 
+    static func parseDelaware(_ data: Data) throws -> [ImportedWebcam] {
+        try JSONDecoder().decode(DelawareFeed.self, from: data).videoCameras.compactMap { cam in
+            guard cam.enabled != false, let url = cam.urls.m3u8s else { return nil }
+            return ImportedWebcam(title: cam.title, latitude: cam.lat, longitude: cam.lon, countryCode: "US",
+                                  originalURL: url, streamURL: url, streamType: .hls)
+        }
+    }
+
+    static func parseMissouri(_ data: Data) throws -> [ImportedWebcam] {
+        try JSONDecoder().decode([MissouriCamera].self, from: data).compactMap { cam in
+            guard let url = cam.html, url.contains(".m3u8") else { return nil }
+            return ImportedWebcam(title: cam.location, latitude: cam.y, longitude: cam.x, countryCode: "US",
+                                  originalURL: url, streamURL: url, streamType: .hls)
+        }
+    }
+
     /// `POINT (-80.89 26.17)`: longitude comes first.
     static func parsePoint(_ text: String) -> (latitude: Double, longitude: Double)? {
         guard let open = text.firstIndex(of: "("), let close = text.firstIndex(of: ")"), open < close else { return nil }
@@ -117,6 +146,23 @@ struct USStateImporter: WebcamImporter {
         return (parts[1], parts[0])
     }
 
+    private struct DelawareFeed: Decodable {
+        struct Camera: Decodable {
+            struct URLs: Decodable { let m3u8s: String? }
+            let urls: URLs
+            let title: String
+            let lat: Double
+            let lon: Double
+            let enabled: Bool?
+        }
+        let videoCameras: [Camera]
+    }
+    private struct MissouriCamera: Decodable {
+        let location: String
+        let x: Double
+        let y: Double
+        let html: String?
+    }
     private struct CARSCamera: Decodable {
         let `public`: Bool?
         let name: String

@@ -41,6 +41,11 @@ enum ProbeClassifier {
         return Classification(streamType: .webpage, streamURL: nil, thumbnailURL: thumbnail, candidateHLS: candidate)
     }
 
+    /// Many pages keep their player in a frame; that frame's page names the stream.
+    static func iframeURL(in html: String, base: String) -> String? {
+        firstMatch(iframePattern, in: html, group: 1).flatMap { resolve($0, against: base) }
+    }
+
     /// Finds a specific YouTube video or channel stream. Search pages don't count.
     static func youtubeEmbed(in text: String) -> String? {
         if let path = firstMatch(youtubeEmbedPattern, in: text, group: 1) {
@@ -128,6 +133,7 @@ enum ProbeClassifier {
     }
 
     private static let hlsPattern = regex(#"https?://[^"'\s<>\\]+\.m3u8[^"'\s<>\\]*"#)
+    private static let iframePattern = regex(#"<iframe[^>]*\ssrc=["']([^"']+)["']"#)
     private static let youtubeEmbedPattern = regex(#"youtube(?:-nocookie)?\.com/embed/((?:live_stream\?channel=[\w-]+)|[\w-]{11})"#)
     private static let youtubeVideoPattern = regex(#"(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]{11})"#)
     private static let ogImagePattern = regex(#"<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']"#)

@@ -85,6 +85,16 @@ enum ProbeService {
         if isDirect { return ProbeOutcome(classification: nil, isOnline: true) }
 
         var result = ProbeClassifier.classify(url: target, contentType: fetched.contentType, body: fetched.body)
+        if result.streamType == .webpage, result.candidateHLS == nil,
+           let frame = ProbeClassifier.iframeURL(in: String(decoding: fetched.body, as: UTF8.self), base: target),
+           ProbeClassifier.isPublicWebURL(frame),
+           let inner = await fetch(frame, client: client), (200..<300).contains(inner.status) {
+            let found = ProbeClassifier.classify(url: frame, contentType: inner.contentType, body: inner.body)
+            if found.streamType != .webpage && found.streamType != .unknown && found.streamType != .image || found.candidateHLS != nil {
+                result = Classification(streamType: found.streamType, streamURL: found.streamURL,
+                                        thumbnailURL: result.thumbnailURL ?? found.thumbnailURL, candidateHLS: found.candidateHLS)
+            }
+        }
         // Page links often contain expired stream tokens, so only trust ones that answer.
         if let candidate = result.candidateHLS, ProbeClassifier.isPublicWebURL(candidate),
            let stream = await fetch(candidate, client: client), (200..<300).contains(stream.status),

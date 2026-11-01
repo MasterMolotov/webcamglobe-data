@@ -23,5 +23,6 @@ public func configure(_ app: Application) async throws {
     app.asyncCommands.use(ImportCommand(), as: "import")
     app.asyncCommands.use(ProbeCommand(), as: "probe")
     app.asyncCommands.use(ExportCommand(), as: "export")
+    app.asyncCommands.use(DiscoverCommand(), as: "discover")
     try routes(app)
 }
