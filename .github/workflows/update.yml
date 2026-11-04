@@ -18,6 +18,10 @@ on:
         description: "Neue Livestreams auf YouTube suchen (verbraucht fast das ganze Tageskontingent)"
         type: boolean
         default: false
+      discover_set:
+        description: "Welche Suche: general oder traffic"
+        required: false
+        default: general
       import:
         description: "Quellen neu einlesen (setzt geprüfte Stream-Arten zurück)"
         type: boolean
@@ -59,7 +63,7 @@ jobs:
         env:
           DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: .build/debug/WebcamServer discover
+        run: .build/debug/WebcamServer discover --set "${{ inputs.discover_set || 'general' }}"
       - name: Suchergebnis sichern
         # Die Suche verbraucht das Tageskontingent, ihr Ergebnis darf nicht an der langen Prüfung hängen.
         if: ${{ inputs.discover == true }}

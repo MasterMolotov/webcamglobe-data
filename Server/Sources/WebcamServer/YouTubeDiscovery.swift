@@ -6,7 +6,10 @@ import WebcamKit
 /// `swift run WebcamServer discover` searches YouTube for live cameras and adds new ones.
 /// Needs `YOUTUBE_API_KEY`. A search costs 100 of the 10,000 free quota units per day.
 struct DiscoverCommand: AsyncCommand {
-    struct Signature: CommandSignature {}
+    struct Signature: CommandSignature {
+        @Option(name: "set", help: "general (default) or traffic")
+        var set: String?
+    }
 
     var help: String { "Finds live webcams on YouTube." }
 
@@ -19,7 +22,8 @@ struct DiscoverCommand: AsyncCommand {
         var known = Set(try await WebcamModel.query(on: app.db).all().map { ImportService.urlKey($0.originalURL) })
         var created = 0, searches = 0
 
-        for search in YouTubeDiscovery.searches {
+        let plan = signature.set == "traffic" ? YouTubeDiscovery.trafficSearches : YouTubeDiscovery.searches
+        for search in plan {
             // Most likely the daily quota; everything found so far stays.
             guard let found = try? await YouTubeDiscovery.search(search, key: key, client: app.client) else {
                 context.console.error("Stopped after \(searches) searches")
@@ -56,6 +60,8 @@ enum YouTubeDiscovery {
         "EarthCam live", "explore.org live cam", "harbor live webcam", "airport live webcam",
         "volcano live webcam", "beach live webcam", "ski resort live webcam", "Webcam live Deutschland",
     ].map { Search(query: $0) }
+
+    static let trafficSearches: [Search] = cities.map { Search(query: "\($0.name) traffic camera live", city: $0) }
 
     static func search(_ search: Search, key: String, client: any Client) async throws -> [ImportedWebcam] {
         let query = search.query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
