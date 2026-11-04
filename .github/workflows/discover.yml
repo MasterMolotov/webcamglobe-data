@@ -1,0 +1,48 @@
+name: YouTube täglich durchsuchen
+
+# Jeden Tag die nächsten 90 Suchen, so ist die ganze Welt in wenigen Tagen einmal durch.
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container: swift:6.1
+    steps:
+      - run: apt-get update -qq && apt-get install -y -qq git jq libsqlite3-dev >/dev/null
+      - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/cache@v4
+        with:
+          path: Server/.build
+          key: build-${{ hashFiles('Server/Package.resolved', 'Server/Sources/**', 'WebcamKit/Sources/**') }}
+          restore-keys: build-
+      - name: Bauen
+        working-directory: Server
+        run: swift build
+      - name: YouTube durchsuchen
+        working-directory: Server
+        env:
+          DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: .build/debug/WebcamServer discover --batch 90
+      - name: Hochladen
+        env:
+          DATABASE_PATH: ${{ github.workspace }}/webcams.sqlite
+        run: |
+          (cd Server && .build/debug/WebcamServer export --output "$RUNNER_TEMP/found.json")
+          [ "$(jq length "$RUNNER_TEMP/found.json")" -ge "$(jq length webcams.json)" ] && mv "$RUNNER_TEMP/found.json" webcams.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add webcams.json webcams.sqlite
+          git diff --cached --quiet || { git commit -m "Tägliche YouTube-Suche"; git push; }

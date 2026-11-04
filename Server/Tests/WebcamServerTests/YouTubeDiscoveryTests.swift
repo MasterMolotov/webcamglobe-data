@@ -42,4 +42,17 @@ final class YouTubeDiscoveryTests: XCTestCase {
         XCTAssertEqual(ProbeClassifier.iframeURL(in: html, base: "https://x.example/page"), "https://x.example/player/1")
         XCTAssertNil(ProbeClassifier.iframeURL(in: "<p>none</p>", base: "https://x.example/page"))
     }
+
+    func testFindsHiddenStreamLinks() {
+        XCTAssertEqual(ProbeClassifier.hlsCandidate(in: #"{"src":"https:\/\/cdn.example\/live\/a.m3u8?t=1"}"#), "https://cdn.example/live/a.m3u8?t=1")
+        XCTAssertEqual(ProbeClassifier.hlsCandidate(in: #"<source src="//cdn.example/b.m3u8">"#), "https://cdn.example/b.m3u8")
+        let html = #"<iframe src="/ad"></iframe><iframe src="/player"></iframe>"#
+        XCTAssertEqual(ProbeClassifier.iframeURLs(in: html, base: "https://x.example/"), ["https://x.example/ad", "https://x.example/player"])
+    }
+
+    func testDailySliceWrapsAround() {
+        let all = (0..<5).map { YouTubeDiscovery.Search(query: "\($0)") }
+        XCTAssertEqual(YouTubeDiscovery.slice(all, size: 3, day: 1).map(\.query), ["3", "4", "0"])
+        XCTAssertGreaterThan(YouTubeDiscovery.searches.count, 300)
+    }
 }

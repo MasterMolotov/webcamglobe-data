@@ -86,14 +86,9 @@ enum ProbeService {
 
         var result = ProbeClassifier.classify(url: target, contentType: fetched.contentType, body: fetched.body)
         if result.streamType == .webpage, result.candidateHLS == nil,
-           let frame = ProbeClassifier.iframeURL(in: String(decoding: fetched.body, as: UTF8.self), base: target),
-           ProbeClassifier.isPublicWebURL(frame),
-           let inner = await fetch(frame, client: client), (200..<300).contains(inner.status) {
-            let found = ProbeClassifier.classify(url: frame, contentType: inner.contentType, body: inner.body)
-            if found.streamType != .webpage && found.streamType != .unknown && found.streamType != .image || found.candidateHLS != nil {
-                result = Classification(streamType: found.streamType, streamURL: found.streamURL,
-                                        thumbnailURL: result.thumbnailURL ?? found.thumbnailURL, candidateHLS: found.candidateHLS)
-            }
+           let found = await searchFrames(of: String(decoding: fetched.body, as: UTF8.self), base: target, depth: 2, client: client) {
+            result = Classification(streamType: found.streamType, streamURL: found.streamURL,
+                                    thumbnailURL: result.thumbnailURL ?? found.thumbnailURL, candidateHLS: found.candidateHLS)
         }
         // Page links often contain expired stream tokens, so only trust ones that answer.
         if let candidate = result.candidateHLS, ProbeClassifier.isPublicWebURL(candidate),
@@ -111,6 +106,23 @@ enum ProbeService {
             }
         }
         return ProbeOutcome(classification: result, isOnline: true)
+    }
+
+    /// Players often sit in a frame inside a frame; looks a few levels down for anything playable.
+    private static func searchFrames(of html: String, base: String, depth: Int, client: HTTPClient) async -> Classification? {
+        guard depth > 0 else { return nil }
+        for frame in ProbeClassifier.iframeURLs(in: html, base: base) where ProbeClassifier.isPublicWebURL(frame) {
+            guard let inner = await fetch(frame, client: client), (200..<300).contains(inner.status) else { continue }
+            let found = ProbeClassifier.classify(url: frame, contentType: inner.contentType, body: inner.body)
+            if found.streamType != .webpage && found.streamType != .unknown && found.streamType != .image || found.candidateHLS != nil {
+                return found
+            }
+            if found.streamType == .webpage,
+               let deeper = await searchFrames(of: String(decoding: inner.body, as: UTF8.self), base: frame, depth: depth - 1, client: client) {
+                return deeper
+            }
+        }
+        return nil
     }
 
     /// Only a stream that is running right now counts; finished streams stay available as plain videos.
