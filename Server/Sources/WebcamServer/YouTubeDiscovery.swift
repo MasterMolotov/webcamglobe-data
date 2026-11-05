@@ -148,6 +148,16 @@ enum YouTubeDiscovery {
         City(name: "Zoo Berlin", latitude: 52.508, longitude: 13.338),
         City(name: "Tierpark Berlin", latitude: 52.500, longitude: 13.531),
         City(name: "Svalbard", latitude: 78.22, longitude: 15.65),
+        City(name: "Little Miami", latitude: 39.40, longitude: -84.20),
+        City(name: "Port Washington", latitude: 43.39, longitude: -87.87),
+        City(name: "Mendenhall", latitude: 58.42, longitude: -134.55),
+        City(name: "Campi ya Kanzi", latitude: -2.85, longitude: 37.85),
+        City(name: "Kilimanjaro", latitude: -3.07, longitude: 37.35),
+        City(name: "Wapusk", latitude: 58.77, longitude: -94.17),
+        City(name: "Naknek", latitude: 58.68, longitude: -156.65),
+        City(name: "Canopy Tower", latitude: 9.08, longitude: -79.65),
+        City(name: "Canopy Lodge", latitude: 8.61, longitude: -80.13),
+        City(name: "Lola ya Bonobo", latitude: -4.43, longitude: 15.25),
     ]
 
     static let trafficSearches: [Search] = cities.map { Search(query: "\($0.name) traffic camera live", city: $0) }
@@ -176,11 +186,11 @@ enum YouTubeDiscovery {
             guard video.snippet.liveBroadcastContent == "live", video.status.embeddable != false,
                   looksLikeCamera(video.snippet.title) else { return nil }
             let title = video.snippet.title
-            let place = places.first { title.localizedCaseInsensitiveContains($0.name) } ?? placeInTitle(title)
+            let place = places.first { names(title, $0.name) } ?? placeInTitle(title)
             let position: (Double, Double, Bool)
             if let exact = video.recordingDetails?.location, let lat = exact.latitude, let lon = exact.longitude {
                 position = (lat, lon, false)
-            } else if let named = place ?? city.flatMap({ video.snippet.title.localizedCaseInsensitiveContains($0.name) ? $0 : nil }) {
+            } else if let named = place ?? city.flatMap({ names(title, $0.name) ? $0 : nil }) {
                 position = (named.latitude, named.longitude, true)
             } else {
                 return nil
@@ -210,7 +220,25 @@ enum YouTubeDiscovery {
     }
 
     static func placeInTitle(_ title: String) -> City? {
-        cities.first { title.localizedCaseInsensitiveContains($0.name) }
+        cities.first { names(title, $0.name) }
+    }
+
+    /// Whether the title names the place as a word of its own: "Rome" is not in "Promenade", "Lima" not in
+    /// "Kilimanjaro", "Goa" not in "Goat". A capital starts a new word ("WebcamSydney"), and scripts without
+    /// spaces, like Japanese, are matched anywhere.
+    static func names(_ title: String, _ place: String) -> Bool {
+        var search = title.startIndex..<title.endIndex
+        while let range = title.range(of: place, options: [.caseInsensitive, .diacriticInsensitive], range: search) {
+            func isLatinLetter(_ c: Character) -> Bool { c.isLetter && c.unicodeScalars.allSatisfy { $0.value < 0x250 } }
+            let before = range.lowerBound > title.startIndex ? title[title.index(before: range.lowerBound)] : nil
+            let after = range.upperBound < title.endIndex ? title[range.upperBound] : nil
+            let first = title[range.lowerBound]
+            let startsWord = before.map { !isLatinLetter($0) || ($0.isLowercase && first.isUppercase) } ?? true
+            let endsWord = after.map { !(isLatinLetter($0) && $0.isLowercase) } ?? true
+            if startsWord && endsWord { return true }
+            search = range.upperBound..<title.endIndex
+        }
+        return false
     }
 
     /// Same video, same small offset of up to about 2 km, so a camera doesn't jump between runs.

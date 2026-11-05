@@ -40,6 +40,17 @@ final class YouTubeDiscoveryTests: XCTestCase {
         XCTAssertTrue(YouTubeDiscovery.searches.contains { $0.query == "bald eagle nest cam live" })
     }
 
+    func testPlacesAreWholeWords() {
+        XCTAssertFalse(YouTubeDiscovery.names("Live-Webcam Ostsee, Seebrücke & Strandpromenade", "Rome"))
+        XCTAssertFalse(YouTubeDiscovery.names("Mountain Goat Cam", "Goa"))
+        XCTAssertFalse(YouTubeDiscovery.names("Campi ya Kanzi Waterhole | Mount Kilimanjaro", "Lima"))
+        XCTAssertFalse(YouTubeDiscovery.names("Bagenalstown Parish Church Webcam", "Paris"))
+        XCTAssertTrue(YouTubeDiscovery.names("BerlinWebcam1: Straße des 17. Juni", "Berlin"))
+        XCTAssertTrue(YouTubeDiscovery.names("WebcamSydney 1 Live Stream", "Sydney"))
+        XCTAssertTrue(YouTubeDiscovery.names("新大阪 ライブカメラ", "大阪"))
+        XCTAssertTrue(YouTubeDiscovery.names("Tokyo, Shibuya live", "tokyo"))
+    }
+
     func testDelawareAndMissouri() throws {
         let delaware = #"{"videoCameras":[{"urls":{"m3u8s":"https://x/1.m3u8"},"title":"DE 1","lat":39.0,"lon":-75.4,"enabled":true},{"urls":{"m3u8s":"https://x/2.m3u8"},"title":"Off","lat":39.0,"lon":-75.4,"enabled":false}]}"#
         XCTAssertEqual(try USStateImporter.parseDelaware(Data(delaware.utf8)).map(\.title), ["DE 1"])
