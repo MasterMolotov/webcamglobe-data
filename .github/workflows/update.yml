@@ -72,10 +72,7 @@ jobs:
         run: |
           (cd Server && .build/debug/WebcamServer export --output "$RUNNER_TEMP/found.json")
           [ "$(jq length "$RUNNER_TEMP/found.json")" -ge "$(jq length webcams.json)" ] && mv "$RUNNER_TEMP/found.json" webcams.json
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add webcams.json webcams.sqlite
-          git diff --cached --quiet || { git commit -m "YouTube-Suche übernommen"; git push; }
+          sh .github/push.sh "YouTube-Suche übernommen"
       - name: Kameras prüfen
         working-directory: Server
         env:
@@ -101,8 +98,4 @@ jobs:
           [ $((new * 100)) -ge $((old * 85)) ] && [ $((newLive * 100)) -ge $((oldLive * 85)) ] || { echo "Zu viele Kameras verschwunden, Liste bleibt unverändert"; exit 1; }
           mv "$RUNNER_TEMP/new.json" webcams.json
       - name: Hochladen
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add webcams.json webcams.sqlite
-          git diff --cached --quiet || { git commit -m "Kameraliste aktualisiert"; git push; }
+        run: sh .github/push.sh "Kameraliste aktualisiert"
