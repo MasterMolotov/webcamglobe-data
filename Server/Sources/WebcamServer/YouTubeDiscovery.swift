@@ -7,7 +7,7 @@ import WebcamKit
 /// Needs `YOUTUBE_API_KEY`. A search costs 100 of the 10,000 free quota units per day.
 struct DiscoverCommand: AsyncCommand {
     struct Signature: CommandSignature {
-        @Option(name: "set", help: "general (default) or traffic")
+        @Option(name: "set", help: "general (default), traffic or animals")
         var set: String?
 
         @Option(name: "batch", help: "Only this many searches, continuing where yesterday's run stopped")
@@ -25,7 +25,11 @@ struct DiscoverCommand: AsyncCommand {
         var known = Set(try await WebcamModel.query(on: app.db).all().map { ImportService.urlKey($0.originalURL) })
         var created = 0, searches = 0
 
-        let all = signature.set == "traffic" ? YouTubeDiscovery.trafficSearches : YouTubeDiscovery.searches
+        let all = switch signature.set {
+        case "traffic": YouTubeDiscovery.trafficSearches
+        case "animals": YouTubeDiscovery.animalSearches
+        default: YouTubeDiscovery.searches
+        }
         let day = Int(Date().timeIntervalSince1970 / 86400)
         let plan = signature.batch.map { YouTubeDiscovery.slice(all, size: $0, day: day) } ?? all
         for search in plan {
@@ -61,6 +65,8 @@ enum YouTubeDiscovery {
         let query: String
         /// Set for a search about one city; its results must name that city.
         var city: City? = nil
+        /// Places looked for in the titles before the cities, like the national parks and zoos of animal cameras.
+        var places: [City] = []
     }
 
     static let searches: [Search] = (cities + countries).map { Search(query: "\($0.name) \($0.phrase)", city: $0) } + [
@@ -70,7 +76,7 @@ enum YouTubeDiscovery {
         "eagle cam live", "railway live webcam", "port live cam ships", "mountain live webcam", "lake live webcam",
         "northern lights live cam", "Antarctica live cam", "safari live cam", "waterfall live cam",
         "lighthouse live cam", "surf cam live", "national park live cam",
-    ].map { Search(query: $0) }
+    ].map { Search(query: $0) } + animalSearches
 
     /// A daily run takes the next `size` searches, so the whole plan is covered over a few days.
     static func slice(_ all: [Search], size: Int, day: Int) -> [Search] {
@@ -78,6 +84,71 @@ enum YouTubeDiscovery {
         let start = day * size % all.count
         return (0..<min(size, all.count)).map { all[(start + $0) % all.count] }
     }
+
+    /// Nests, feeders, waterholes, zoos and aquariums. Their titles seldom name a city, so famous
+    /// places of animal cameras are known by name; cameras without any known place are still left out.
+    static let animalSearches: [Search] = [
+        "bald eagle nest cam live", "eagle nest live cam", "osprey nest cam live", "peregrine falcon nest cam live",
+        "kestrel nest cam live", "owl box cam live", "barn owl live cam", "stork nest live cam", "Storchennest live",
+        "Adlerhorst live", "Seeadler live cam", "Fischadler live", "Turmfalken live", "Uhu live cam", "heron nest cam live",
+        "swan nest cam live", "puffin cam live", "albatross cam live", "penguin cam live", "bird feeder cam live",
+        "FeederWatch cam", "Vogelhaus live cam", "hummingbird feeder live cam", "brown bear cam live", "polar bear cam live",
+        "africam live", "waterhole live cam", "safari live cam Africa", "elephant live cam", "giraffe cam live",
+        "panda cam live", "gorilla cam live", "koala cam live", "otter cam live", "sea lion cam live", "seal cam live",
+        "aquarium live cam", "underwater reef cam live", "shark cam live", "jellyfish cam live", "Tierpark live cam",
+        "zoo live webcam", "wildlife camera live stream", "fox den cam live", "badger cam live",
+    ].map { Search(query: $0, places: animalPlaces) }
+
+    static let animalPlaces: [City] = [
+        City(name: "Brooks Falls", latitude: 58.554, longitude: -155.779),
+        City(name: "Katmai", latitude: 58.554, longitude: -155.779),
+        City(name: "Anan Bear", latitude: 56.18, longitude: -131.88),
+        City(name: "Churchill", latitude: 58.77, longitude: -94.17),
+        City(name: "Decorah", latitude: 43.30, longitude: -91.79),
+        City(name: "Big Bear", latitude: 34.24, longitude: -116.91),
+        City(name: "Berry College", latitude: 34.29, longitude: -85.19),
+        City(name: "Southwest Florida Eagle", latitude: 26.71, longitude: -81.79),
+        City(name: "Fort Myers", latitude: 26.64, longitude: -81.87),
+        City(name: "Captiva", latitude: 26.52, longitude: -82.19),
+        City(name: "Channel Islands", latitude: 34.0, longitude: -119.7),
+        City(name: "Dulles Greenway", latitude: 39.0, longitude: -77.5),
+        City(name: "Hog Island", latitude: 43.98, longitude: -69.42),
+        City(name: "Charlo", latitude: 47.44, longitude: -114.17),
+        City(name: "Sapsucker Woods", latitude: 42.48, longitude: -76.45),
+        City(name: "Ontario FeederWatch", latitude: 49.13, longitude: -85.84),
+        City(name: "Yellowstone", latitude: 44.6, longitude: -110.5),
+        City(name: "Smithsonian", latitude: 38.930, longitude: -77.050),
+        City(name: "San Diego Zoo", latitude: 32.735, longitude: -117.149),
+        City(name: "Pittsburgh Zoo", latitude: 40.484, longitude: -79.919),
+        City(name: "Houston Zoo", latitude: 29.714, longitude: -95.390),
+        City(name: "Monterey Bay Aquarium", latitude: 36.618, longitude: -121.902),
+        City(name: "Georgia Aquarium", latitude: 33.763, longitude: -84.395),
+        City(name: "Vancouver Aquarium", latitude: 49.300, longitude: -123.131),
+        City(name: "Seattle Aquarium", latitude: 47.607, longitude: -122.343),
+        City(name: "Royal Albatross", latitude: -45.77, longitude: 170.73),
+        City(name: "Taiaroa", latitude: -45.77, longitude: 170.73),
+        City(name: "Port Lincoln", latitude: -34.72, longitude: 135.86),
+        City(name: "Tembe", latitude: -27.05, longitude: 32.42),
+        City(name: "Olifants", latitude: -24.05, longitude: 31.73),
+        City(name: "Djuma", latitude: -24.80, longitude: 31.55),
+        City(name: "Kruger", latitude: -24.0, longitude: 31.5),
+        City(name: "Etosha", latitude: -18.85, longitude: 16.33),
+        City(name: "Okavango", latitude: -19.3, longitude: 22.9),
+        City(name: "Mpala", latitude: 0.29, longitude: 36.90),
+        City(name: "Masai Mara", latitude: -1.5, longitude: 35.15),
+        City(name: "Serengeti", latitude: -2.33, longitude: 34.83),
+        City(name: "Galapagos", latitude: -0.75, longitude: -90.31),
+        City(name: "Wolong", latitude: 31.03, longitude: 103.20),
+        City(name: "Farne Islands", latitude: 55.63, longitude: -1.63),
+        City(name: "Skomer", latitude: 51.74, longitude: -5.30),
+        City(name: "Loch Garten", latitude: 57.24, longitude: -3.69),
+        City(name: "Dyfi", latitude: 52.57, longitude: -3.92),
+        City(name: "Rutland Water", latitude: 52.65, longitude: -0.63),
+        City(name: "Ouwehands", latitude: 51.96, longitude: 5.58),
+        City(name: "Zoo Berlin", latitude: 52.508, longitude: 13.338),
+        City(name: "Tierpark Berlin", latitude: 52.500, longitude: 13.531),
+        City(name: "Svalbard", latitude: 78.22, longitude: 15.65),
+    ]
 
     static let trafficSearches: [Search] = cities.map { Search(query: "\($0.name) traffic camera live", city: $0) }
 
@@ -88,7 +159,7 @@ enum YouTubeDiscovery {
             .items.compactMap(\.id.videoId)
         guard !ids.isEmpty else { return [] }
         let videosURL = "https://www.googleapis.com/youtube/v3/videos?part=snippet,status,recordingDetails&id=\(ids.joined(separator: ","))&key=\(key)"
-        return try await parseVideos(body(of: videosURL, client: client), city: search.city)
+        return try await parseVideos(body(of: videosURL, client: client), city: search.city, places: search.places)
     }
 
     private static func body(of url: String, client: any Client) async throws -> Data {
@@ -100,11 +171,12 @@ enum YouTubeDiscovery {
         return Data(buffer.readableBytesView)
     }
 
-    static func parseVideos(_ data: Data, city: City?) throws -> [ImportedWebcam] {
+    static func parseVideos(_ data: Data, city: City?, places: [City] = []) throws -> [ImportedWebcam] {
         try JSONDecoder().decode(VideosResponse.self, from: data).items.compactMap { video in
             guard video.snippet.liveBroadcastContent == "live", video.status.embeddable != false,
                   looksLikeCamera(video.snippet.title) else { return nil }
-            let place = placeInTitle(video.snippet.title)
+            let title = video.snippet.title
+            let place = places.first { title.localizedCaseInsensitiveContains($0.name) } ?? placeInTitle(title)
             let position: (Double, Double, Bool)
             if let exact = video.recordingDetails?.location, let lat = exact.latitude, let lon = exact.longitude {
                 position = (lat, lon, false)

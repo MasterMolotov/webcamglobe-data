@@ -28,6 +28,18 @@ final class YouTubeDiscoveryTests: XCTestCase {
         XCTAssertEqual(cams[1].streamURL, "https://www.youtube-nocookie.com/embed/ccccccccccc")
     }
 
+    func testAnimalCamerasArePlacedByKnownPlaces() throws {
+        let json = """
+        {"items":[
+          {"id":"fffffffffff","snippet":{"title":"Brooks Falls - Katmai National Park live cam","liveBroadcastContent":"live"},"status":{"embeddable":true}},
+          {"id":"ggggggggggg","snippet":{"title":"Osprey nest cam","liveBroadcastContent":"live"},"status":{"embeddable":true}}]}
+        """
+        let cams = try YouTubeDiscovery.parseVideos(Data(json.utf8), city: nil, places: YouTubeDiscovery.animalPlaces)
+        XCTAssertEqual(cams.map(\.originalURL), ["https://www.youtube.com/watch?v=fffffffffff"])
+        XCTAssertEqual(cams[0].latitude, 58.55, accuracy: 0.03)
+        XCTAssertTrue(YouTubeDiscovery.searches.contains { $0.query == "bald eagle nest cam live" })
+    }
+
     func testDelawareAndMissouri() throws {
         let delaware = #"{"videoCameras":[{"urls":{"m3u8s":"https://x/1.m3u8"},"title":"DE 1","lat":39.0,"lon":-75.4,"enabled":true},{"urls":{"m3u8s":"https://x/2.m3u8"},"title":"Off","lat":39.0,"lon":-75.4,"enabled":false}]}"#
         XCTAssertEqual(try USStateImporter.parseDelaware(Data(delaware.utf8)).map(\.title), ["DE 1"])

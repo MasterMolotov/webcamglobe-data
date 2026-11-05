@@ -19,7 +19,7 @@ on:
         type: boolean
         default: false
       discover_set:
-        description: "Welche Suche: general oder traffic"
+        description: "Welche Suche: general, traffic oder animals"
         required: false
         default: general
       import:
