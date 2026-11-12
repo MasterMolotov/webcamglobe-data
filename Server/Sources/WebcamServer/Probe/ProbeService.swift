@@ -82,6 +82,9 @@ enum ProbeService {
         guard (200..<400).contains(fetched.status) else {
             return await fallbackToStill(for: cam, client: client)
         }
+        if cam.streamType == StreamType.hls.rawValue, !(await hlsPlays(target, playlist: fetched.body, client: client)) {
+            return await fallbackToStill(for: cam, client: client)
+        }
         if isDirect { return ProbeOutcome(classification: nil, isOnline: true) }
 
         var result = ProbeClassifier.classify(url: target, contentType: fetched.contentType, body: fetched.body)
@@ -139,6 +142,49 @@ enum ProbeService {
               let fetched = await fetch(page, client: client, maxBytes: youtubePageBytes),
               ProbeClassifier.isYouTubeVideoPage(fetched.body) else { return nil }
         return ProbeClassifier.isLiveYouTubePage(fetched.body)
+    }
+
+    /// A playlist that answers says little: players start a few pieces from the end, and some servers
+    /// list pieces they no longer have. Follows the playlist to that piece and tries it twice.
+    private static func hlsPlays(_ url: String, playlist: Data, client: HTTPClient) async -> Bool {
+        var base = url
+        var lines = playlistLines(playlist)
+        guard lines.first?.hasPrefix("#EXTM3U") == true else { return false }
+        // A master playlist names the variants; the first is what players pick up first.
+        if lines.contains(where: { $0.hasPrefix("#EXT-X-STREAM-INF") }) {
+            guard let variant = mediaURIs(lines).first, let resolved = resolve(variant, against: base),
+                  ProbeClassifier.isPublicWebURL(resolved),
+                  let fetched = await fetch(resolved, client: client), (200..<300).contains(fetched.status) else { return false }
+            base = resolved
+            lines = playlistLines(fetched.body)
+        }
+        let segments = mediaURIs(lines)
+        guard !segments.isEmpty, let piece = resolve(segments[max(0, segments.count - 3)], against: base),
+              ProbeClassifier.isPublicWebURL(piece) else { return false }
+        for attempt in 0..<2 {
+            if attempt > 0 { try? await Task.sleep(nanoseconds: 3_000_000_000) }
+            if let fetched = await fetch(piece, client: client, maxBytes: 64 * 1024) {
+                if (200..<300).contains(fetched.status) { return true }
+                // Not for bots or rate-limited, not gone: the app's player may still get it.
+                if blockedStatuses.contains(fetched.status) { return true }
+            }
+        }
+        return false
+    }
+
+    private static func playlistLines(_ data: Data) -> [String] {
+        String(decoding: data, as: UTF8.self)
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func mediaURIs(_ lines: [String]) -> [String] {
+        lines.filter { !$0.hasPrefix("#") }
+    }
+
+    private static func resolve(_ reference: String, against base: String) -> String? {
+        URL(string: reference, relativeTo: URL(string: base))?.absoluteURL.absoluteString
     }
 
     /// Many traffic cameras keep publishing stills after their video stream is gone.
