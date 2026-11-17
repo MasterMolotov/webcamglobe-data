@@ -145,7 +145,7 @@ enum ProbeService {
     }
 
     /// A playlist that answers says little: players start a few pieces from the end, and some servers
-    /// list pieces they no longer have. Follows the playlist to that piece and tries it twice.
+    /// list pieces they no longer have. Follows the playlist and loads the pieces that matter.
     private static func hlsPlays(_ url: String, playlist: Data, client: HTTPClient) async -> Bool {
         var base = url
         var lines = playlistLines(playlist)
@@ -159,8 +159,19 @@ enum ProbeService {
             lines = playlistLines(fetched.body)
         }
         let segments = mediaURIs(lines)
-        guard !segments.isEmpty, let piece = resolve(segments[max(0, segments.count - 3)], against: base),
-              ProbeClassifier.isPublicWebURL(piece) else { return false }
+        guard !segments.isEmpty else { return false }
+        // The oldest listed piece too: a server that lists pieces it already dropped only
+        // works now and then, depending on when a player happens to load the list.
+        let starts = Set([segments[0], segments[max(0, segments.count - 3)]])
+        for reference in starts {
+            guard let piece = resolve(reference, against: base), ProbeClassifier.isPublicWebURL(piece),
+                  await pieceLoads(piece, client: client) else { return false }
+        }
+        return true
+    }
+
+    /// Tries twice, since busy servers drop a request now and then.
+    private static func pieceLoads(_ piece: String, client: HTTPClient) async -> Bool {
         for attempt in 0..<2 {
             if attempt > 0 { try? await Task.sleep(nanoseconds: 3_000_000_000) }
             if let fetched = await fetch(piece, client: client, maxBytes: 64 * 1024) {
