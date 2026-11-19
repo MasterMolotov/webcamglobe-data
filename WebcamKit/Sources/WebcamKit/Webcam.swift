@@ -25,6 +25,29 @@ public enum WebcamSource: String, Codable, Sendable, CaseIterable {
     case us511
     case caltrans
     case youtube
+    /// Finland's road weather cameras (Fintraffic Digitraffic, CC BY 4.0).
+    case digitraffic
+    /// British Columbia's highway cameras.
+    case driveBC
+
+    /// Road and highway cameras, which children's and nature views leave out.
+    public var isTraffic: Bool {
+        [.us511, .caltrans, .autobahn, .digitraffic, .driveBC].contains(self)
+    }
+}
+
+// Lists from a newer server may name sources or stream types this build does not know yet;
+// one unknown entry must not keep the whole list from loading.
+extension WebcamSource {
+    public init(from decoder: any Decoder) throws {
+        self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .manual
+    }
+}
+
+extension StreamType {
+    public init(from decoder: any Decoder) throws {
+        self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+    }
 }
 
 /// A webcam as delivered by the API.

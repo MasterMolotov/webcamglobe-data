@@ -4,7 +4,7 @@ import WebcamKit
 /// `swift run WebcamServer import [--source caltrans]`
 struct ImportCommand: AsyncCommand {
     struct Signature: CommandSignature {
-        @Option(name: "source", help: "caltrans, wikidata, openStreetMap or us511 (default: all)")
+        @Option(name: "source", help: "caltrans, wikidata, openStreetMap, us511, digitraffic or driveBC (default: all)")
         var source: String?
     }
 
@@ -12,7 +12,7 @@ struct ImportCommand: AsyncCommand {
 
     func run(using context: CommandContext, signature: Signature) async throws {
         let app = context.application
-        let all: [any WebcamImporter] = [CaltransImporter(), WikidataImporter(), OpenStreetMapImporter(), USStateImporter()]
+        let all: [any WebcamImporter] = [CaltransImporter(), WikidataImporter(), OpenStreetMapImporter(), USStateImporter(), DigitrafficImporter(), DriveBCImporter()]
         let selected = signature.source.map { name in all.filter { $0.source.rawValue == name } } ?? all
         guard !selected.isEmpty else {
             context.console.error("Unknown source: \(signature.source ?? "")")

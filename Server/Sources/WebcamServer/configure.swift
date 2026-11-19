@@ -20,6 +20,8 @@ public func configure(_ app: Application) async throws {
 
     // Some public data servers are slow to accept connections.
     app.http.client.configuration.timeout = .init(connect: .seconds(60), read: .seconds(180))
+    // Digitraffic only answers compressed.
+    app.http.client.configuration.decompression = .enabled(limit: .ratio(100))
     app.asyncCommands.use(ImportCommand(), as: "import")
     app.asyncCommands.use(ProbeCommand(), as: "probe")
     app.asyncCommands.use(ExportCommand(), as: "export")
