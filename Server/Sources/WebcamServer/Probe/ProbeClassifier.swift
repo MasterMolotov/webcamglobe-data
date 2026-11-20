@@ -52,6 +52,34 @@ enum ProbeClassifier {
         return firstMatch(schemelessHLSPattern, in: html, group: 1).map { "https:" + $0.replacingOccurrences(of: "&amp;", with: "&") }
     }
 
+    /// Pictures on a camera's page that look like the camera's current image, best first.
+    /// They still have to be loaded: only a picture of a real size counts.
+    static func stillCandidates(in html: String, base: String, limit: Int = 3) -> [String] {
+        guard let host = URL(string: base)?.host?.lowercased(),
+              !stillForbiddenHosts.contains(where: { host == $0 || host.hasSuffix("." + $0) }) else { return [] }
+        var result: [String] = []
+        for match in imagePattern.matches(in: html, range: NSRange(html.startIndex..., in: html)) {
+            guard let range = Range(match.range(at: 1), in: html) else { continue }
+            let raw = String(html[range]).replacingOccurrences(of: "&amp;", with: "&")
+            guard stillNamePattern.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)) != nil,
+                  stillJunkPattern.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)) == nil,
+                  let url = resolve(raw, against: base),
+                  let imageHost = URL(string: url)?.host?.lowercased(),
+                  !stillForbiddenHosts.contains(where: { imageHost == $0 || imageHost.hasSuffix("." + $0) }),
+                  !result.contains(url) else { continue }
+            result.append(url)
+            if result.count == limit { break }
+        }
+        return result
+    }
+
+    /// Collections whose pictures may not be shown elsewhere, or that only sell their own players.
+    static let stillForbiddenHosts = [
+        "foto-webcam.eu", "foto-webcam.net", "foto-webcam.org", "staticflickr.com", "flickr.com", "webcamgalore.com", "webcamgalore.de", "bergfex.com", "bergfex.de",
+        "bergfex.at", "wetter.com", "panomax.com", "skaping.com", "feratel.com", "earthcam.com", "windy.com",
+        "insecam.org", "webcam-hd.com", "livespotting.com", "roundshot.com",
+    ]
+
     /// Many pages keep their player in a frame; that frame's page names the stream.
     static func iframeURL(in html: String, base: String) -> String? {
         iframeURLs(in: html, base: base).first
@@ -162,5 +190,8 @@ enum ProbeClassifier {
     private static let iframePattern = regex(#"<iframe[^>]*\ssrc=["']([^"']+)["']"#)
     private static let youtubeEmbedPattern = regex(#"youtube(?:-nocookie)?\.com/embed/((?:live_stream\?channel=[\w-]+)|[\w-]{11})"#)
     private static let youtubeVideoPattern = regex(#"(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]{11})"#)
+    private static let imagePattern = regex(#"<img[^>]+?(?:data-src|src)=["']([^"']+)["']"#)
+    private static let stillNamePattern = regex(#"(webcam|cam\d*[_./-]|current|aktuell|latest|snapshot|picture|live)[^"']*\.jpe?g(\?|$)"#)
+    private static let stillJunkPattern = regex(#"logo|icon|button|banner|sprite|avatar|werbung|anzeige|small_|\d{2,3}x\d{2,3}[^\d]|/uploads/|(19|20)\d{6}|20\d\d[_-]\d\d[_-]\d\d"#)
     private static let ogImagePattern = regex(#"<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']"#)
 }

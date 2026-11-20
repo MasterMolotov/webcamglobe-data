@@ -93,6 +93,11 @@ enum ProbeService {
             result = Classification(streamType: found.streamType, streamURL: found.streamURL,
                                     thumbnailURL: result.thumbnailURL ?? found.thumbnailURL, candidateHLS: found.candidateHLS)
         }
+        // Many camera pages simply show the camera's latest picture.
+        if result.streamType == .webpage, result.candidateHLS == nil,
+           let still = await liveStill(in: String(decoding: fetched.body, as: UTF8.self), base: target, client: client) {
+            result = Classification(streamType: .image, streamURL: still, thumbnailURL: still)
+        }
         // Page links often contain expired stream tokens, so only trust ones that answer.
         if let candidate = result.candidateHLS, ProbeClassifier.isPublicWebURL(candidate),
            let stream = await fetch(candidate, client: client), (200..<300).contains(stream.status),
@@ -198,6 +203,19 @@ enum ProbeService {
         URL(string: reference, relativeTo: URL(string: base))?.absoluteURL.absoluteString
     }
 
+    /// The first picture on the page that loads as a real photo, not an icon or a placeholder.
+    private static func liveStill(in html: String, base: String, client: HTTPClient) async -> String? {
+        for candidate in ProbeClassifier.stillCandidates(in: html, base: base) where ProbeClassifier.isPublicWebURL(candidate) {
+            guard let fetched = await fetch(candidate, client: client), (200..<300).contains(fetched.status),
+                  fetched.contentType?.lowercased().hasPrefix("image/") == true,
+                  fetched.body.count >= 20_000,
+                  // A picture nobody has renewed for a week is a photo of the place, not the camera.
+                  fetched.lastModified.map({ Date().timeIntervalSince($0) < 7 * 86400 }) ?? true else { continue }
+            return candidate
+        }
+        return nil
+    }
+
     /// Many traffic cameras keep publishing stills after their video stream is gone.
     private static func fallbackToStill(for cam: WebcamModel, client: HTTPClient) async -> ProbeOutcome {
         guard cam.streamType == StreamType.hls.rawValue, let still = cam.thumbnailURL,
@@ -211,10 +229,19 @@ enum ProbeService {
         )
     }
 
+    private static let lastModifiedFormat: DateFormatter = {
+        let format = DateFormatter()
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.timeZone = TimeZone(identifier: "GMT")
+        format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return format
+    }()
+
     private struct Fetched: Sendable {
         var status: UInt
         var contentType: String?
         var body: Data
+        var lastModified: Date? = nil
     }
 
     /// Reads only the start of the response: MJPEG streams never end.
@@ -233,7 +260,8 @@ enum ProbeService {
                         body.append(contentsOf: chunk.readBytes(length: chunk.readableBytes) ?? [])
                         if body.count >= maxBytes { break }
                     }
-                    return Fetched(status: response.status.code, contentType: response.headers.first(name: "content-type"), body: body)
+                    let modified = response.headers.first(name: "last-modified").flatMap(lastModifiedFormat.date(from:))
+                    return Fetched(status: response.status.code, contentType: response.headers.first(name: "content-type"), body: body, lastModified: modified)
                 } catch {
                     return nil
                 }

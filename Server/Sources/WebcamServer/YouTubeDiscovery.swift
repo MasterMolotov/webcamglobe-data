@@ -76,7 +76,23 @@ enum YouTubeDiscovery {
         "eagle cam live", "railway live webcam", "port live cam ships", "mountain live webcam", "lake live webcam",
         "northern lights live cam", "Antarctica live cam", "safari live cam", "waterfall live cam",
         "lighthouse live cam", "surf cam live", "national park live cam",
-    ].map { Search(query: $0) } + animalSearches
+    ].map { Search(query: $0) } + animalSearches + germanySearches
+
+    /// German cameras often say "Livecam" or "Live Stream" instead of "Webcam live", and many
+    /// show harbours, zoos, railways or the coast; a second wording finds what the first misses.
+    static let germanySearches: [Search] = germanPlaces.map { Search(query: "\($0.name) Livecam", city: $0) } + [
+        "Livecam Hafen", "Livecam Ostsee", "Livecam Nordsee", "Livecam Strand", "Livecam Alpen", "Livecam Skigebiet",
+        "Livecam Bahnhof", "Livecam Bahnstrecke", "Livecam Zoo", "Livecam Tierpark", "Livecam Innenstadt",
+        "Livecam Marktplatz", "Livecam Dom", "Livecam Schleuse", "Livecam Fähre", "Livecam Flughafen",
+        "Live Stream Webcam Deutschland", "Webcam live Stadt", "Webcam live Hafen", "Webcam live Berge",
+    ].map { Search(query: $0) }
+
+    /// The big cities and every place of the in-depth German list.
+    static var germanPlaces: [City] {
+        let big: Set = ["Berlin", "Hamburg", "München", "Köln", "Frankfurt", "Dresden", "Leipzig", "Stuttgart",
+                        "Düsseldorf", "Hannover", "Nürnberg", "Bremen", "Rostock", "Kiel", "Sylt", "Rügen"]
+        return cities.filter { big.contains($0.name) || ($0.phrase == "Webcam live" && $0.name != "Großglockner") }
+    }
 
     /// A daily run takes the next `size` searches, so the whole plan is covered over a few days.
     static func slice(_ all: [Search], size: Int, day: Int) -> [Search] {
